@@ -127,11 +127,11 @@ def solve_dmrg_gfn(h: HubbardModel, omega=None, eta=1e-2):
         for i in range(nsite):
             des_i = driver.get_site_mpo(op="d", site_index=i, iprint=0)
             rhs = driver.get_random_mps(tag="RHS", bond_dim=400, center=ket.center, target=des[i].op.q_label + ket.info.target)
-            driver.multiply(rhs, des[i], ket, n_sweeps=20, bond_dims=[400], thrds=[1e-10] * 10, iprint=h.verbose)
+            driver.multiply(rhs, des_i, ket, n_sweeps=20, bond_dims=[400], thrds=[1e-10] * 10, iprint=h.verbose)
 
             zip = driver.copy_mps(rhs, tag="BRA")
             gip[iw, i, i] = driver.greens_function(
-                zip, hip, des[i], ket, w, -eta, n_sweeps=20,
+                zip, hip, des_i, ket, w, -eta, n_sweeps=20,
                 bra_bond_dims=[400], ket_bond_dims=[400], 
                 thrds=[1E-6] * 10, iprint=h.verbose
                 )
