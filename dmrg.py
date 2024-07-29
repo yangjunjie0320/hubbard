@@ -87,7 +87,8 @@ def solve_dmrg_gfn(h: HubbardModel, omega=None, eta=1e-2):
     hub_u = h._hub_u
     hop_t = h._hop_t
 
-    driver = DMRGDriver(scratch="./tmp", symm_type=SymmetryTypes.SZ, n_threads=4)
+    symm_type = SymmetryTypes.SZ | SymmetryTypes.CPX
+    driver = DMRGDriver(scratch="./tmp", symm_type=symm_type, n_threads=4)
     driver.initialize_system(n_sites=nsite, n_elec=nelec_alph + nelec_beta, spin=spin)
 
     b = driver.expr_builder()
@@ -111,7 +112,8 @@ def solve_dmrg_gfn(h: HubbardModel, omega=None, eta=1e-2):
         thrds=thrds, cutoff=0, iprint=h.verbose
         )
     
-    mpo.const_e -= e0
+    hip = 1.0 * mpo
+    hip.const_e -= e0
 
     if h.verbose > 0:
         print("DMRG Ground State Energy = %12.8f" % e0)
@@ -123,12 +125,13 @@ def solve_dmrg_gfn(h: HubbardModel, omega=None, eta=1e-2):
 
     for iw, w in enumerate(omega):
         for i in range(nsite):
+            des_i = driver.get_site_mpo(op="d", site_index=i, iprint=0)
             rhs = driver.get_random_mps(tag="RHS", bond_dim=400, center=ket.center, target=des[i].op.q_label + ket.info.target)
             driver.multiply(rhs, des[i], ket, n_sweeps=20, bond_dims=[400], thrds=[1e-10] * 10, iprint=h.verbose)
 
             zip = driver.copy_mps(rhs, tag="BRA")
             gip[iw, i, i] = driver.greens_function(
-                zip, mpo, des[i], ket, w, eta, n_sweeps=20,
+                zip, hip, des[i], ket, w, -eta, n_sweeps=20,
                 bra_bond_dims=[400], ket_bond_dims=[400], 
                 thrds=[1E-6] * 10, iprint=h.verbose
                 )
@@ -136,29 +139,11 @@ def solve_dmrg_gfn(h: HubbardModel, omega=None, eta=1e-2):
             for j in range(nsite):
                 if j == i:
                     continue
-
+                cre_j = driver.get_site_mpo(op="c", site_index=j, iprint=0)
                 gip[iw, i, j] = driver.expectation(
-                    zip, des[j], ket
+                    ket, cre_j, zip
                 )
-    
-    # for iw, w in enumerate(omega):
-    #     for i in range(nsite):
-    #         rhs = driver.get_random_mps(
-    #             tag="RHS", bond_dim=400, center=ket.center, 
-    #             target=cre[i].op.q_label + ket.info.target
-    #             )
-    #         driver.multiply(
-    #             rhs, cre[i], ket, n_sweeps=20, bond_dims=[400], 
-    #             thrds=[1e-10] * 10, iprint=h.verbose
-    #             )
 
-    #         zea = driver.copy_mps(rhs, tag="BRA")
-    #         gea[iw, i, i] += driver.greens_function(
-    #             zea, mpo, cre[i], ket, w, eta, n_sweeps=20,
-    #             bra_bond_dims=[400], ket_bond_dims=[400], 
-    #             thrds=[1E-6] * 10, iprint=h.verbose
-    #             )    
-    
     return numpy.asarray([gip, gea]).transpose(1, 0, 2, 3)
 
 if __name__ == "__main__":
@@ -200,37 +185,13 @@ if __name__ == "__main__":
         nelec = nsite
 
         hub = HubbardModel1D(nsite, nelec, hub_u=hub, is_pbc=True)
-        hub.verbose = 1
+        hub.verbose = 0
 
         from solver import solve_fci_gfn
         omega = [0.0] # numpy.linspace(-5, 5, 100)
-        gfn_dmrg = solve_dmrg_gfn(hub, omega=omega, eta=1e-2)
-        gfn_fci = solve_fci_gfn(hub, omega=omega, eta=1e-2)
+        gfn_dmrg = solve_dmrg_gfn(hub, omega=omega, eta=1e-2)[:, 0]
+        gfn_fci = solve_fci_gfn(hub, omega=omega, eta=1e-2)[:, 0]
 
-        import sys
-        print("DMRG", gfn_dmrg.shape)
-        numpy.savetxt(sys.stdout, gfn_dmrg[0][0].real, fmt="% 6.4f", delimiter=", ")
-
-        print("DMRG")
-        numpy.savetxt(sys.stdout, gfn_dmrg[0][0].imag, fmt="% 6.4f", delimiter=", ")
-
-        print("DMRG")
-        numpy.savetxt(sys.stdout, gfn_dmrg[0][1].real, fmt="% 6.4f", delimiter=", ")
-
-        print("DMRG")
-        numpy.savetxt(sys.stdout, gfn_dmrg[0][1].imag, fmt="% 6.4f", delimiter=", ")
-
-        print("FCI", gfn_fci.shape)
-        numpy.savetxt(sys.stdout, gfn_fci[0][0].real, fmt="% 6.4f", delimiter=", ")
-
-        print("FCI")
-        numpy.savetxt(sys.stdout, gfn_fci[0][0].imag, fmt="% 6.4f", delimiter=", ")
-
-        print("FCI", gfn_fci.shape)
-        numpy.savetxt(sys.stdout, gfn_fci[0][1].real, fmt="% 6.4f", delimiter=", ")
-
-        print("FCI")
-        numpy.savetxt(sys.stdout, gfn_fci[0][1].imag, fmt="% 6.4f", delimiter=", ")
-
-        assert 1 == 2
+        err = abs(gfn_dmrg - gfn_fci).max()
+        print(f"Error = {err: 6.4e}")   
 

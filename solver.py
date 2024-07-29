@@ -119,6 +119,58 @@ def solve_fci_rdm1(h: Hamiltonian):
     rdm1 = fci_obj.make_rdm1(v0, h.norb, h.nelec)
     return rdm1
 
+def solve_fci_gfn(h: Hamiltonian, omega=None, eta=1e-2):
+    fci_obj = fci.direct_spin1.FCI()
+    fci_obj.verbose = h.verbose
+    fci_obj.nroots  = 4
+    fci_obj.conv_tol = 1e-12
+    e, v = fci_obj.kernel(h.h1e, h.h2e, h.norb, h.nelec)
+    e0 = e.min()
+    v0 = v[e.argmin()]
+
+    if h.verbose > 0:
+        print(f"FCI Ground State Energy = {e0: 12.8f}")
+    
+    norb = h.norb
+    nelec_alph = h.nelec_alph
+    nelec_beta = h.nelec_beta
+    nelec = (nelec_alph, nelec_beta)
+
+    yip = [fci.addons.des_a(v0, norb, nelec, p) for p in range(norb)]
+    yip = numpy.asarray(yip).reshape(norb, -1)
+
+    yea = [fci.addons.cre_a(v0, norb, nelec, p) for p in range(norb)]
+    yea = numpy.asarray(yea).reshape(norb, -1)
+
+    hip = fci.direct_spin1.pspace(
+        h.h1e, h.h2e, norb, (nelec_alph - 1, nelec_beta),
+        hdiag=None, np=yip.shape[1]
+    )[1]
+    
+    hea = fci.direct_spin1.pspace(
+        h.h1e, h.h2e, norb, (nelec_alph + 1, nelec_beta),
+        hdiag=None, np=yea.shape[1]
+    )[1]
+    
+    assert omega is not None
+    gfn = []
+    for w in omega:
+        size = hip.shape[0]
+        a  = (w - 1j * eta) * numpy.eye(size)
+        a += (hip - e0 * numpy.eye(size))
+        zip = numpy.linalg.solve(a, yip.T)
+        gip = numpy.dot(yip, zip)
+
+        size = hea.shape[0]
+        a  = (w + 1j * eta) * numpy.eye(size)
+        a -= (hea - e0 * numpy.eye(size))
+        zea = numpy.linalg.solve(a, yea.T)
+        gea = numpy.dot(yea, zea).T
+
+        gfn.append((gip, gea))
+
+    return numpy.asarray(gfn) # .reshape(-1, norb, norb)
+
 def solve_rhf_ene(h: Hamiltonian, dm0=None):
     from pyscf import gto, scf
     m = gto.M()
