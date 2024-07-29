@@ -192,18 +192,18 @@ if __name__ == "__main__":
         gfn_dmrg = solve_dmrg_gfn(hub, omega=omega, eta=1e-2)[:, 0][0]
         gfn_fci = solve_fci_gfn(hub, omega=omega, eta=1e-2)[:, 0][0]
 
-        import sys
-        print("DMRG")
-        numpy.savetxt(sys.stdout, gfn_dmrg.real, fmt="% 6.4f", delimiter=", ")
+        # import sys
+        # print("DMRG (real)")
+        # numpy.savetxt(sys.stdout, gfn_dmrg.real, fmt="% 6.4f", delimiter=", ")
 
-        print("FCI")
-        numpy.savetxt(sys.stdout, gfn_fci.real, fmt="% 6.4f", delimiter=", ")
+        # print("FCI (real)")
+        # numpy.savetxt(sys.stdout, gfn_fci.real, fmt="% 6.4f", delimiter=", ")
 
-        print("DMRG")
-        numpy.savetxt(sys.stdout, gfn_dmrg.imag, fmt="% 6.4f", delimiter=", ")
+        # print("DMRG (imag)")
+        # numpy.savetxt(sys.stdout, gfn_dmrg.imag, fmt="% 6.4f", delimiter=", ")
 
-        print("FCI")
-        numpy.savetxt(sys.stdout, gfn_fci.imag, fmt="% 6.4f", delimiter=", ")
+        # print("FCI (imag)")
+        # numpy.savetxt(sys.stdout, gfn_fci.imag, fmt="% 6.4f", delimiter=", ")
 
         err = abs(gfn_dmrg - gfn_fci).max()
         print(f"Error = {err: 6.4e}")   
